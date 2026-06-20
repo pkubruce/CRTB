@@ -311,7 +311,14 @@ sim_intv <- function(fixed_parms, parms, state, eys, eye, pnew, pret,
   rhoL      <- all_parms[["rhoL"]]
   rhoL_t    <- RECL_Effect * rhoL / (1 - rhoL + RECL_Effect * rhoL)
   f         <- all_parms[["f"]]
+  
+  alpha     <- 0.09/100 # https://impaact4tb.org/wp-content/uploads/2020/12/2T-Ghana-Resistance-and-TPT_JH4.pdf#1#1
  
+  e_inc_norr   <- (w_fast*Efast_out + w_slow*Eslow_out) + 
+                  (w_fast_t*Efast_T_out*(1-alpha) + w_slow_t*Eslow_T_out*(1-alpha)) + 
+                  (rhoH*RH_out +  rhoL*RL_out) + 
+                  (rhoH_t*RH_T_out + rhoL_t*RL_T_out)
+  e_inc_withrr <- w_fast_t*Efast_T_out*alpha + w_slow_t*Eslow_T_out*alpha
   e_inc_num    <- (w_fast*Efast_out + w_slow*Eslow_out) + 
                   (w_fast_t*Efast_T_out + w_slow_t*Eslow_T_out) + 
                   (rhoH*RH_out +  rhoL*RL_out) + 
@@ -319,7 +326,7 @@ sim_intv <- function(fixed_parms, parms, state, eys, eye, pnew, pret,
   e_recur_num  <- (rhoH*RH_out +  rhoL*RL_out) + 
                   (rhoH_t*RH_T_out + rhoL_t*RL_T_out)
   r            <- e_recur_num / pmax(e_inc_num, 1e-12)
-  e_inc_rr_num <- e_inc_num * ((1 - f) * pnew * ((1 - r) + r * RR) + f * pret)
+  e_inc_rr_num <- e_inc_norr * ((1 - f) * pnew * ((1 - r) + r * RR) + f * pret) + e_inc_withrr
   e_mort_num   <- cfr*I_out
   
   list(
@@ -327,6 +334,7 @@ sim_intv <- function(fixed_parms, parms, state, eys, eye, pnew, pret,
     e_inc_num = e_inc_num,
     e_mort_num = e_mort_num,
     e_inc_rr_num = e_inc_rr_num,
+    e_inc_withrr = e_inc_withrr,
     raw = out
   )
 }
@@ -341,7 +349,7 @@ integerize_sim_raw_safe <- function(simlist, nonnegative = TRUE) {
   raw_df$e_inc_rr_num <- simlist$e_inc_rr_num
   
   count_cols <- intersect(
-    c("S", "Efast", "Eslow", "I", "RH", "RL", "N", "e_inc_num", "e_mort_num", "e_inc_rr_num"),
+    c("S", "Efast", "Eslow", "I", "RH", "RL", "N", "e_inc_num", "e_mort_num", "e_inc_rr_num", "e_inc_withrr"),
     names(raw_df)
   )
   
@@ -489,7 +497,8 @@ sim_intervention_sequence <- function(
         year = seg_res$year, 
         e_inc_num = seg_res$e_inc_num,
         e_mort_num = seg_res$e_mort_num,
-        e_inc_rr_num = seg_res$e_inc_rr_num
+        e_inc_rr_num = seg_res$e_inc_rr_num,
+        e_inc_withrr = seg_res$e_inc_withrr
       )
     )
     seg <- seg[-1, ]
