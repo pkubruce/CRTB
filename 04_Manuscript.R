@@ -185,6 +185,24 @@ for (i in 1:nsamp) {
 }
 s_df <- as.data.table(do.call(rbind, slist))
 
+ey.further <- 2050
+idx <- sample(1:nrow(mcmcres$pars), nsamp)
+slist <- list()
+for (i in 1:nsamp) {
+  s <- sim_tb_model(
+    fixed_parms = fixed_parms, 
+    parms = mcmcres$pars[idx[i], ], 
+    ey = ey.further, 
+    state = state, 
+    pnew = logit2p(as.numeric(predict(fit_new, newdata = data.frame(year = 2013:ey.further)))), 
+    pret = logit2p(as.numeric(predict(fit_ret, newdata = data.frame(year = 2013:ey.further))))
+  )
+  s <- integerize_sim_raw_safe(s)
+  s$iter <- i
+  slist[[i]] <- s
+}
+s_df_further <- as.data.table(do.call(rbind, slist))
+
 # @ (1) -------------------------------------------------------------------
 
 # annual intervention for the recurrence high‑risk group, whereby 80% of this group would receive a vaccine that reduces their tuberculosis recurrence rate (rate ratio = 0.50, as assumed in previous studies)
@@ -211,6 +229,7 @@ for(i in 1:nsamp){
     parms = mcmcres$pars[idx[i], ],
     init_state = unlist(subset(si, time == baseey)[,init_comp_name]),
     base_year = baseey,
+    end_year = ey,
     intervention_schedule = schedule,
     pnew = logit2p(predict(fit_new, newdata = data.frame(year = baseey:2035))),
     pret = logit2p(predict(fit_ret, newdata = data.frame(year = baseey:2035)))
@@ -253,6 +272,7 @@ for(i in 1:nsamp){
     parms = mcmcres$pars[idx[i], ],
     init_state = unlist(subset(si, time == baseey)[,init_comp_name]),
     base_year = baseey,
+    end_year = ey,
     intervention_schedule = schedule,
     pnew = logit2p(predict(fit_new, newdata = data.frame(year = baseey:2035))),
     pret = logit2p(predict(fit_ret, newdata = data.frame(year = baseey:2035)))
@@ -296,6 +316,7 @@ for(i in 1:nsamp){
     parms = mcmcres$pars[idx[i], ],
     init_state = unlist(subset(si, time == baseey)[,init_comp_name]),
     base_year = baseey,
+    end_year = ey,
     intervention_schedule = schedule,
     pnew = logit2p(predict(fit_new, newdata = data.frame(year = baseey:2035))),
     pret = logit2p(predict(fit_ret, newdata = data.frame(year = baseey:2035)))
@@ -340,6 +361,7 @@ for(i in 1:nsamp){
     parms = mcmcres$pars[idx[i], ],
     init_state = unlist(subset(si, time == baseey)[,init_comp_name]),
     base_year = baseey,
+    end_year = ey,
     intervention_schedule = schedule,
     pnew = logit2p(predict(fit_new, newdata = data.frame(year = baseey:2035))),
     pret = logit2p(predict(fit_ret, newdata = data.frame(year = baseey:2035)))
@@ -354,6 +376,51 @@ for(i in 1:nsamp){
 intv_df_v4 <- as.data.table(do.call(rbind, reslist)) 
 intv_df_v4$group <- "Combination"
 # intv_df <- intv_df_v4
+
+# @ (5) -------------------------------------------------------------------
+
+# the combination of scenarios (1), (2) and (3) and stopped after 2035
+
+rm(schedule); rm(reslist)
+
+schedule <- data.frame(
+  start_year = c(2026,  2027,  2029,  2030,  2032,  2033, 2035),
+  end_year   = c(2027,  2029,  2030,  2032,  2033,  2035, 2050),
+  TPT        = c(TRUE,  FALSE, TRUE,  FALSE, TRUE,  FALSE, FALSE),
+  TPT_Effect = c(0.33,  0.33,  0.33,  0.33,  0.33,  0.33,  0.33),
+  TPT_Scale  = c(0.80,  0.00,  0.80,  0.00,  0.80,  0.00,  0.00),
+  RECH       = c(TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  FALSE),
+  RECH_Effect = c(0.50, 0.50,  0.50,  0.50,  0.50,  0.50,  0.50),
+  RECH_Scale  = c(0.80, 0.80,  0.80,  0.80,  0.80,  0.80,  0.00),
+  RECL       = c(TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  FALSE),
+  RECL_Effect = c(0.50, 0.50,  0.50,  0.50,  0.50,  0.50,  0.50),
+  RECL_Scale  = c(0.80, 0.80,  0.80,  0.80,  0.80,  0.80,  0.00)
+)
+reslist <- list()
+for(i in 1:nsamp){
+  si <- subset(s_df, iter==i & time <=baseey); si <- as.data.frame(si)
+  
+  res <- sim_intervention_sequence(
+    fixed_parms = fixed_parms,
+    parms = mcmcres$pars[idx[i], ],
+    init_state = unlist(subset(si, time == baseey)[,init_comp_name]),
+    base_year = baseey,
+    end_year = 2050,
+    intervention_schedule = schedule,
+    pnew = logit2p(predict(fit_new, newdata = data.frame(year = baseey:2050))),
+    pret = logit2p(predict(fit_ret, newdata = data.frame(year = baseey:2050)))
+  )
+  
+  res <- as.data.frame(rbind_fill(si, res))
+  
+  res$iter <- i
+  
+  reslist[[i]] <- res
+}
+intv_df_v5 <- as.data.table(do.call(rbind, reslist)) 
+intv_df_v5$group <- "Further"
+# intv_df <- intv_df_v4
+
 
 # intergrated data --------------------------------------------------------
 
@@ -607,7 +674,80 @@ merge(bdf, idf, by = c("time", "iter"))[,.(
 
 
 
+s_fur <- s_df_further[time==2050, .(
+  iter = iter,
+  e_inc_100k = e_inc_num/N*1e5, 
+  e_mort_100k = e_mort_num/N*1e5,
+  e_rr_inc_100k = e_inc_rr_num/N*1e5
+)]
 
+i_fur <- intv_df_v5[time==2050, .(
+  iter = iter,
+  e_inc_100k = e_inc_num/N*1e5, 
+  e_mort_100k = e_mort_num/N*1e5,
+  e_rr_inc_100k = e_inc_rr_num/N*1e5
+)]
 
+setnames(s_fur, old = "e_inc_100k", new = "base_e_inc_100k")
+setnames(s_fur, old = "e_mort_100k", new = "base_e_mort_100k")
+setnames(s_fur, old = "e_rr_inc_100k", new = "base_e_rr_inc_100k")
 
+m_fur <- merge(s_fur, i_fur, by = "iter")
+
+m_fur[,.(
+  rateratio.inc.m = quantile(e_inc_100k/base_e_inc_100k, 0.500),
+  rateratio.inc.lo = quantile(e_inc_100k/base_e_inc_100k, 0.025),
+  rateratio.inc.hi = quantile(e_inc_100k/base_e_inc_100k, 0.975),
+  
+  rateratio.mort.m = quantile(e_mort_100k/base_e_mort_100k, 0.500),
+  rateratio.mort.lo = quantile(e_mort_100k/base_e_mort_100k, 0.025),
+  rateratio.mort.hi = quantile(e_mort_100k/base_e_mort_100k, 0.975),
+  
+  rateratio.rrinc.m = quantile(e_rr_inc_100k/base_e_rr_inc_100k, 0.500),
+  rateratio.rrinc.lo = quantile(e_rr_inc_100k/base_e_rr_inc_100k, 0.025),
+  rateratio.rrinc.hi = quantile(e_rr_inc_100k/base_e_rr_inc_100k, 0.975)
+)]
+
+intv_df_v5[time>=2027,`:=`(prop = e_inc_withrr/e_inc_rr_num*100)]
+
+prop.v5 <- intv_df_v5[time>=2027&time<=2050,.(
+  prop.m = quantile(prop, 0.500),
+  prop.lo = quantile(prop, 0.025),
+  prop.hi = quantile(prop, 0.975)
+), by = "time"]
+
+# Color
+col_line <- "#2F5DAA"
+col_rib  <- adjustcolor("#6F8FC9", alpha.f = 0.25)
+plot(
+  prop.v5$time, prop.v5$prop.m,
+  type = "n",
+  xlab = "Year",
+  ylab = "Proportion (%)",
+  main = "Proportion of incident RRTB cases attribute to TPT",
+  ylim = c(0,10),
+  yaxs = "i",
+  xaxt = "n",
+  las = 1,
+  bty = "l",
+  cex.lab = 1.2,
+  cex.axis = 1.0
+)
+axis(1, at = seq(2027, 2050, by = 3))
+abline(
+  h = seq(2, 10, 2),
+  col = "grey90",
+  lwd = 1
+)
+polygon(
+  x = c(prop.v5$time, rev(prop.v5$time)),
+  y = c(prop.v5$prop.lo, rev(prop.v5$prop.hi)),
+  col = col_rib,
+  border = NA
+)
+lines(
+  prop.v5$time, prop.v5$prop.m,
+  col = col_line,
+  lwd = 2.5
+)
 
