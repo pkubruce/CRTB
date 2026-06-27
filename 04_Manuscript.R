@@ -167,8 +167,6 @@ init_comp_name <- c("B", "M", "S", "Efast", "Eslow", "I", "RH", "RL", "N")
 # Status Quo
 set.seed(1234)
 ey <- 2035
-nsamp <- 100
-idx <- sample(1:nrow(mcmcres$pars), nsamp)
 slist <- list()
 for (i in 1:nsamp) {
   s <- sim_tb_model(
@@ -186,7 +184,6 @@ for (i in 1:nsamp) {
 s_df <- as.data.table(do.call(rbind, slist))
 
 ey.further <- 2050
-idx <- sample(1:nrow(mcmcres$pars), nsamp)
 slist <- list()
 for (i in 1:nsamp) {
   s <- sim_tb_model(
@@ -474,6 +471,8 @@ intv_df_agg <- rbind(intv_df_v1, intv_df_v2, intv_df_v3, intv_df_v4)[,.( ## Inte
 ), by = c("time", "group")]
 
 
+intv_df_agg[time>=2027, c("time","e_inc_100k_me","e_inc_100k_lo","e_inc_100k_hi")]
+
 # To Plot the Intervention Scenario ---------------------------------------
 
 options(scipen = 999) # No Scientific Data
@@ -719,6 +718,7 @@ prop.v5 <- intv_df_v5[time>=2027&time<=2050,.(
 # Color
 col_line <- "#2F5DAA"
 col_rib  <- adjustcolor("#6F8FC9", alpha.f = 0.25)
+par(mfrow = c(1,1))
 plot(
   prop.v5$time, prop.v5$prop.m,
   type = "n",
